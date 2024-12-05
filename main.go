@@ -27,12 +27,16 @@ var signingFileExts = []string{".mf", ".rsa", ".dsa", ".ec", ".sf"}
 // -----------------------
 
 type configs struct {
-	BuildArtifactPath  string `env:"android_app,required"`
-	KeystoreURL        string `env:"keystore_url,required"`
-	KeystorePassword   string `env:"keystore_password,required"`
-	KeystoreAlias      string `env:"keystore_alias,required"`
-	PrivateKeyPassword string `env:"private_key_password"`
-	OutputName         string `env:"output_name"`
+	BuildArtifactPath    string `env:"android_app,required"`
+	KeystoreURL          string `env:"keystore_url,required"`
+	KeystorePassword     string `env:"keystore_password,required"`
+	KeystoreAlias        string `env:"keystore_alias,required"`
+	NextKeystoreURL      string `env:"next_keystore_url,required"`
+	NextKeystorePassword string `env:"next_keystore_password,required"`
+	NextKeystoreAlias    string `env:"next_keystore_alias,required"`
+	PrivateKeyPassword   string `env:"private_key_password"`
+	LineageURL           string `env:"lineage_url"`
+	OutputName           string `env:"output_name"`
 
 	VerboseLog          bool   `env:"verbose_log,opt[true,false]"`
 	PageAlign           string `env:"page_align,opt[automatic,true,false]"`
@@ -267,12 +271,31 @@ func main() {
 		failf("Process config: failed to validate input: %s", err)
 	}
 
-	// Download keystore
+	// Download keystores and lineage
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("bitrise-sign-build-artifact")
 	if err != nil {
 		failf("Run: failed to create tmp dir: %s", err)
 	}
 
+	// lineage
+	lineagePath := ""
+	if strings.HasPrefix(cfg.LineageURL, "file://") {
+		pth := strings.TrimPrefix(cfg.LineageURL, "file://")
+		var err error
+		lineagePath, err = pathutil.AbsPath(pth)
+		if err != nil {
+			failf("Run: failed to expand path (%s): %s", pth, err)
+		}
+	} else {
+		log.Infof("Download keystore")
+		lineagePath = path.Join(tmpDir, "lineage")
+		if err := download(cfg.LineageURL, lineagePath); err != nil {
+			failf("Run: failed to download lineagePath: %s", err)
+		}
+	}
+	log.Printf("using keystore at: %s", lineagePath)
+
+	// keystore
 	keystorePath := ""
 	if strings.HasPrefix(cfg.KeystoreURL, "file://") {
 		pth := strings.TrimPrefix(cfg.KeystoreURL, "file://")
@@ -290,7 +313,28 @@ func main() {
 	}
 	log.Printf("using keystore at: %s", keystorePath)
 
-	keystore, err := keystore.NewHelper(keystorePath, cfg.KeystorePassword, cfg.KeystoreAlias)
+	if _, err := keystore.NewHelper(keystorePath, cfg.KeystorePassword, cfg.KeystoreAlias); err != nil {
+		failf("Run: failed to create keystore helper: %s", err)
+	}
+	// next keystore
+	nextkeystorePath := ""
+	if strings.HasPrefix(cfg.NextKeystoreURL, "file://") {
+		pth := strings.TrimPrefix(cfg.NextKeystoreURL, "file://")
+		var err error
+		nextkeystorePath, err = pathutil.AbsPath(pth)
+		if err != nil {
+			failf("Run: failed to expand path (%s): %s", pth, err)
+		}
+	} else {
+		log.Infof("Download keystore")
+		nextkeystorePath = path.Join(tmpDir, "nextkeystore.jks")
+		if err := download(cfg.NextKeystoreURL, nextkeystorePath); err != nil {
+			failf("Run: failed to download keystore: %s", err)
+		}
+	}
+	log.Printf("using keystore at: %s", nextkeystorePath)
+
+	_, err = keystore.NewHelper(nextkeystorePath, cfg.NextKeystorePassword, cfg.NextKeystoreAlias)
 	if err != nil {
 		failf("Run: failed to create keystore helper: %s", err)
 	}
@@ -317,7 +361,10 @@ func main() {
 	}
 	log.Printf("zipalign: %s", zipalign)
 
-	apkSigner, err := NewKeystoreSignatureConfiguration(keystorePath, cfg.KeystorePassword, cfg.KeystoreAlias, cfg.PrivateKeyPassword, cfg.DebuggablePermitted, cfg.SignerScheme)
+	apkSigner, err := NewKeystoreSignatureConfiguration(
+		keystorePath, cfg.KeystorePassword, cfg.KeystoreAlias,
+		nextkeystorePath, cfg.NextKeystorePassword, cfg.NextKeystoreAlias,
+		cfg.PrivateKeyPassword, cfg.DebuggablePermitted, cfg.SignerScheme)
 	if err != nil {
 		failf("Run: failed to create signature configuration: %s", err)
 	}
@@ -384,8 +431,6 @@ func main() {
 		var fullPath string
 		if signerTool == string(apksignerSignerTool) {
 			fullPath = signAPK(zipalign, unsignedBuildArtifactPth, buildArtifactDir, buildArtifactBasename, artifactExt, cfg.OutputName, apkSigner, pageAlignConfig)
-		} else {
-			fullPath = signJarSigner(zipalign, tmpDir, unsignedBuildArtifactPth, buildArtifactDir, buildArtifactBasename, artifactExt, cfg.PrivateKeyPassword, cfg.OutputName, keystore, pageAlignConfig)
 		}
 
 		if signAAB {

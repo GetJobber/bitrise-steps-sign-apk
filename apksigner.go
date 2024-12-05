@@ -32,16 +32,29 @@ func createKeystoreCmdSlice(configuration *KeystoreSignatureConfiguration) ([]st
 	}
 
 	cmdSlice := []string{
+		"--rotation-min-sdk-version",
+		"26",
 		"--ks",
 		configuration.keystorePth,
 		"--ks-pass",
 		"pass:" + configuration.keystorePassword,
 		"--ks-key-alias",
 		configuration.alias,
+		"--next-signer",
+		"--ks",
+		configuration.nextKeystorePth,
+		"--ks-pass",
+		"pass:" + configuration.nextKeystorePassword,
+		"--ks-key-alias",
+		configuration.nextAlias,
 	}
 
-	if configuration.aliasPassword != "" {
-		cmdSlice = append(cmdSlice, "--key-pass", "pass:"+configuration.aliasPassword)
+	// if configuration.aliasPassword != "" {
+	// 	cmdSlice = append(cmdSlice, "--key-pass", "pass:"+configuration.aliasPassword)
+	// }
+
+	if configuration.lineagePth != "" {
+		cmdSlice = append(cmdSlice, "--lineage", configuration.lineagePth)
 	}
 
 	return cmdSlice, nil

@@ -17,10 +17,15 @@ const (
 
 // KeystoreSignatureConfiguration ..
 type KeystoreSignatureConfiguration struct {
-	keystorePth      string
-	keystorePassword string
-	aliasPassword    string
-	alias            string
+	keystorePth          string
+	keystorePassword     string
+	aliasPassword        string
+	alias                string
+	nextKeystorePth      string
+	nextKeystorePassword string
+	nextAliasPassword    string
+	nextAlias            string
+	lineagePth           string
 }
 
 // SignatureConfiguration ...
@@ -49,7 +54,10 @@ func buildAPKSignerPath() (string, error) {
 }
 
 // NewKeystoreSignatureConfiguration ...
-func NewKeystoreSignatureConfiguration(keystore string, keystorePassword string, alias string, aliasPassword string, debuggablePermitted string, signerScheme string) (SignatureConfiguration, error) {
+func NewKeystoreSignatureConfiguration(
+	keystore string, keystorePassword string, alias string,
+	nextKeystore string, nextKeystorePassword string, nextAlias string,
+	aliasPassword string, debuggablePermitted string, signerScheme string) (SignatureConfiguration, error) {
 	apkSigner, err := buildAPKSignerPath()
 
 	if err != nil {
@@ -57,10 +65,13 @@ func NewKeystoreSignatureConfiguration(keystore string, keystorePassword string,
 	}
 
 	keystoreConfig := KeystoreSignatureConfiguration{
-		keystorePth:      keystore,
-		keystorePassword: keystorePassword,
-		alias:            alias,
-		aliasPassword:    aliasPassword,
+		keystorePth:          keystore,
+		keystorePassword:     keystorePassword,
+		alias:                alias,
+		nextKeystorePth:      nextKeystore,
+		nextKeystorePassword: nextKeystorePassword,
+		nextAlias:            nextAlias,
+		aliasPassword:        aliasPassword,
 	}
 
 	return SignatureConfiguration{
